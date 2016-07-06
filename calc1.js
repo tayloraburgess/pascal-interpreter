@@ -15,14 +15,13 @@ function token(initType, initValue) {
 	}
 }
 
-function interpreter(initText) {
+function lexer(initText) {
 	this.text = initText;
 	this.position = 0;
-	this.currentToken = null;
 	this.currentChar = this.text[this.position];
 
 	this.error = function() {
-		throw "Error parsing input";
+		throw "Invalid character"
 	}
 
 	this.advance = function() {
@@ -31,7 +30,6 @@ function interpreter(initText) {
 			this.currentChar = null;
 		else
 			this.currentChar = this.text[this.position];							
-
 	}
 
 	this.skipWhiteSpace = function() {
@@ -58,49 +56,56 @@ function interpreter(initText) {
 			if (!isNaN(this.currentChar))
 				return new token("INTEGER", this.integer());
 
-			if (this.currentChar == "+") {
+			if (this.currentChar == "*") {
 				this.advance();
-				return new token("PLUS", this.currentChar);
+				return new token("MUL", this.currentChar);
 			}
 
-			if (this.currentChar == "-") {
+			if (this.currentChar == "/") {
 				this.advance();
-				return new token("MINUS", this.currentChar);
+				return new token("DIV", this.currentChar);
 			}
 
 			this.error();
 		}
-
 		return new token("EOF", null);
+	}
+}
+
+function interpreter(initLexer) {
+	
+	this.lexer = initLexer;
+	this.currentToken = this.lexer.getNextToken();
+
+	this.error = function() {
+		throw "Invalid syntax";
 	}
 
 	this.eat = function(tokenType) {
 		if (this.currentToken.type == tokenType)
-			this.currentToken = this.getNextToken();
+			this.currentToken = this.lexer.getNextToken();
 		else
 			this.error();
 	}
 
-	this.term = function() {
-		var termToken = this.currentToken;
+	this.factor = function() {
+		var factorToken = this.currentToken;
 		this.eat("INTEGER");
-		return termToken.value;
+		return factorToken.value;
 	}
 
 	this.expr = function() {
-		this.currentToken = this.getNextToken();
+		var result = this.factor();
 
-		var result = this.term();
-
-		while (this.currentToken.type == "PLUS" || this.currentToken.type == "MINUS") {
+		while (this.currentToken.type == "MUL" || this.currentToken.type == "DIV") {
 			var testToken = this.currentToken;
-			if (testToken.type == "PLUS") {
-				this.eat("PLUS");
-				result += this.term();
+			if (testToken.type == "MUL") {
+				this.eat("MUL");
+				result *= this.factor();
 			}
-			else if (testToken.type == "MINUS") {
-				this.eat("MINUS");
-				result -= this.term();
+			else if (testToken.type == "DIV") {
+				this.eat("DIV");
+				result /= this.factor();
 			}
 		}
 		return result;
@@ -115,11 +120,11 @@ var main = function(input) {
 		rl.close();
 
 	else {
-		var currentInterpreter = new interpreter(input);
+		var currentLexer = new lexer(input);
+		var currentInterpreter = new interpreter(currentLexer);
 		console.log(currentInterpreter.expr());
 		rl.question(promptString, main);
 	}
-
 }
 
 rl.question(promptString, main);
