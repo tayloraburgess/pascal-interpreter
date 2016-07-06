@@ -81,26 +81,30 @@ function interpreter(initText) {
 			this.error();
 	}
 
+	this.term = function() {
+		var termToken = this.currentToken;
+		this.eat("INTEGER");
+		return termToken.value;
+	}
+
 	this.expr = function() {
 		this.currentToken = this.getNextToken();
 
-		var left = this.currentToken;
-		this.eat("INTEGER");
+		var result = this.term();
 
-		var op = this.currentToken;
-		if (op.type == "PLUS")
-			this.eat("PLUS");
-		else
-			this.eat("MINUS");
-
-		var right = this.currentToken;
-		this.eat("INTEGER");
-
-		if (op.type == "PLUS")
-			return left.value + right.value;
-		else
-			return left.value - right.value;
-	}
+		while (this.currentToken.type == "PLUS" || this.currentToken.type == "MINUS") {
+			var testToken = this.currentToken;
+			if (testToken.type == "PLUS") {
+				this.eat("PLUS");
+				result += this.term();
+			}
+			else if (testToken.type == "MINUS") {
+				this.eat("MINUS");
+				result -= this.term();
+			}
+		}
+		return result;
+	 }
 }
 
 var promptString = "calc> ";
