@@ -19,31 +19,60 @@ function interpreter(initText) {
 	this.text = initText;
 	this.position = 0;
 	this.currentToken = null;
+	this.currentChar = this.text[this.position];
 
 	this.error = function() {
 		throw "Error parsing input";
 	}
 
+	this.advance = function() {
+		this.position++;
+		if (this.position > this.text.length - 1)
+			this.currentChar = null;
+		else
+			this.currentChar = this.text[this.position];							
+
+	}
+
+	this.skipWhiteSpace = function() {
+		while (this.currentChar != null && this.currentChar == " ")
+			this.advance();
+	}
+
+	this.integer = function() {
+		var result = "";
+		while (this.currentChar != null && !isNaN(this.currentChar)) {
+			result += this.currentChar;
+			this.advance();
+		}
+		return parseInt(result);
+	}
+
 	this.getNextToken = function() {
 		var lexText = this.text;
 
-		if (this.position > lexText.length - 1)
-			return new token("EOF", null)
+		while (this.currentChar != null) {
 
-		var currentChar = lexText[this.position];
+			if (this.currentChar == " ")
+				this.skipWhiteSpace();	
 
-		if (!isNaN(currentChar)) {
-			var returnToken = new token("INTEGER", parseInt(currentChar));
-			this.position++;
-			return returnToken;
+			if (!isNaN(this.currentChar))
+				return new token("INTEGER", this.integer());
+
+			if (this.currentChar == "+") {
+				this.advance();
+				return new token("PLUS", this.currentChar);
+			}
+
+			if (this.currentChar == "-") {
+				this.advance();
+				return new token("MINUS", this.currentChar);
+			}
+
+			this.error();
 		}
-		if (currentChar == "+") {
-			var returnToken = new token("PLUS", currentChar);
-			this.position++;
-			return returnToken;
-		}
 
-		this.error();
+		return new token("EOF", null);
 	}
 
 	this.eat = function(tokenType) {
@@ -60,12 +89,18 @@ function interpreter(initText) {
 		this.eat("INTEGER");
 
 		var op = this.currentToken;
-		this.eat("PLUS");
+		if (op.type == "PLUS")
+			this.eat("PLUS");
+		else
+			this.eat("MINUS");
 
 		var right = this.currentToken;
 		this.eat("INTEGER");
 
-		return left.value + right.value;
+		if (op.type == "PLUS")
+			return left.value + right.value;
+		else
+			return left.value - right.value;
 	}
 }
 
