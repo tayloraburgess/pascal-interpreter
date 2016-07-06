@@ -49,7 +49,6 @@ function interpreter(initText) {
 	}
 
 	this.getNextToken = function() {
-		var lexText = this.text;
 
 		while (this.currentChar != null) {
 
