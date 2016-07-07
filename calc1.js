@@ -92,7 +92,24 @@ function lexer(initText) {
 	}
 }
 
-function interpreter(initLexer) {
+function AST() {
+}
+
+function binOp(initLeft, initOp, initRight) {
+	this.left = initLeft;
+	this.token = initOp;
+	this.op = initOp;
+	this.right = initRight;
+}
+binOp.prototype = new AST();
+
+function num(initToken) {
+	this.token = initToken;
+	this.value = initToken.value;
+}
+num.prototype = new AST();
+
+function parser(initLexer) {
 	
 	this.lexer = initLexer;
 	this.currentToken = this.lexer.getNextToken();
@@ -112,52 +129,94 @@ function interpreter(initLexer) {
 		var factorToken = this.currentToken;
 		if (factorToken.type == "INTEGER") {
 			this.eat("INTEGER");
-			return factorToken.value;
+			return new num(factorToken);
 		}
 		else if (factorToken.type == "LPAREN") {
 			this.eat("LPAREN");
-			var result = this.expr();
+			var node = this.expr();
 			this.eat("RPAREN");
-			return result;
+			return node;
 		}
 	}
 
 	this.term = function() {
-		var result = this.factor();
+		var node = this.factor();
 
 		while (this.currentToken.type == "MUL" || this.currentToken.type == "DIV") {
 			var testToken = this.currentToken;
 			if (testToken.type == "MUL") {
 				this.eat("MUL");
-				result *= this.factor();
 			}
 			else if (testToken.type == "DIV") {
 				this.eat("DIV");
-				result /= this.factor();
 			}
+			node = new binOp(node, testToken, this.term());
 		}
-		return result;
+		return node;
 	}
 
 	this.expr = function() {
-		var result = this.term();
+		var node = this.term();
 
 		while (this.currentToken.type == "PLUS" || this.currentToken.type == "MINUS") {
 			var testToken = this.currentToken;
 			if (testToken.type == "PLUS") {
 				this.eat("PLUS");
-				result += this.term();
 			}
 			else if (testToken.type == "MINUS") {
 				this.eat("MINUS");
-				result -= this.term();
 			}
+			node = new binOp(node, testToken, this.term());
 		}
-		return result;
-	 }
+		return node;
+	}
+
+	this.parse = function() {
+		return this.expr();
+	}
 }
 
-var promptString = "calc> ";
+function nodeVisitor() {
+	this.visit = function(node) {
+		if (node instanceof binOp)
+			return this.visitBinOp(node);
+		else if (node instanceof num)
+			return this.visitNum(node);
+		else
+			return this.genericVisit(node);
+	}
+
+	this.genericVisit = function(node) {
+		throw "No visit method for node type";
+	}
+}
+
+function interpreter(initParser) {
+	this.parser = initParser;
+
+	this.visitBinOp = function(node) {
+		if (node.op.type == "PLUS")
+			return this.visit(node.left) + this.visit(node.right);
+		else if (node.op.type == "MINUS")
+			return this.visit(node.left) - this.visit(node.right);
+		else if (node.op.type == "MUL")
+			return this.visit(node.left) * this.visit(node.right);
+		else if (node.op.type == "DIV")
+			return this.visit(node.left) / this.visit(node.right);
+	}
+
+	this.visitNum = function(node) {
+		return node.value;
+	}
+
+	this.interpret = function() {
+		var tree = this.parser.parse();
+		return this.visit(tree);
+	}
+}
+interpreter.prototype = new nodeVisitor();
+
+var promptString = "spi> ";
 
 var main = function(input) {
 
@@ -166,8 +225,9 @@ var main = function(input) {
 
 	else {
 		var currentLexer = new lexer(input);
-		var currentInterpreter = new interpreter(currentLexer);
-		console.log(currentInterpreter.expr());
+		var currentParser = new parser(currentLexer);
+		var currentInterpreter = new interpreter(currentParser);
+		console.log(currentInterpreter.interpret());
 		rl.question(promptString, main);
 	}
 }
