@@ -56,14 +56,24 @@ function lexer(initText) {
 			if (!isNaN(this.currentChar))
 				return new token("INTEGER", this.integer());
 
+			if (this.currentChar == "+") {
+				this.advance();
+				return new token("PLUS", "+");
+			}
+
+			if (this.currentChar == "-") {
+				this.advance();
+				return new token("MINUS", "-");
+			}
+
 			if (this.currentChar == "*") {
 				this.advance();
-				return new token("MUL", this.currentChar);
+				return new token("MUL", "*");
 			}
 
 			if (this.currentChar == "/") {
 				this.advance();
-				return new token("DIV", this.currentChar);
+				return new token("DIV", "/");
 			}
 
 			this.error();
@@ -94,7 +104,7 @@ function interpreter(initLexer) {
 		return factorToken.value;
 	}
 
-	this.expr = function() {
+	this.term = function() {
 		var result = this.factor();
 
 		while (this.currentToken.type == "MUL" || this.currentToken.type == "DIV") {
@@ -108,6 +118,24 @@ function interpreter(initLexer) {
 				result /= this.factor();
 			}
 		}
+		return result;
+	}
+
+	this.expr = function() {
+		var result = this.term();
+
+		while (this.currentToken.type == "PLUS" || this.currentToken.type == "MINUS") {
+			var testToken = this.currentToken;
+			if (testToken.type = "PLUS") {
+				this.eat("PLUS");
+				result += this.term();
+			}
+			else if (testToken.type == "MINUS") {
+				this.eat("MINUS");
+				result -= this.term();
+			}
+		}
+
 		return result;
 	 }
 }
