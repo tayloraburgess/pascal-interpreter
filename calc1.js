@@ -76,6 +76,16 @@ function lexer(initText) {
 				return new token("DIV", "/");
 			}
 
+			if (this.currentChar == "(") {
+				this.advance();
+				return new token("LPAREN", "(");
+			}
+
+			if (this.currentChar == ")") {
+				this.advance();
+				return new token("RPAREN", ")");
+			}
+
 			this.error();
 		}
 		return new token("EOF", null);
@@ -100,8 +110,16 @@ function interpreter(initLexer) {
 
 	this.factor = function() {
 		var factorToken = this.currentToken;
-		this.eat("INTEGER");
-		return factorToken.value;
+		if (factorToken.type == "INTEGER") {
+			this.eat("INTEGER");
+			return factorToken.value;
+		}
+		else if (factorToken.type == "LPAREN") {
+			this.eat("LPAREN");
+			var result = this.expr();
+			this.eat("RPAREN");
+			return result;
+		}
 	}
 
 	this.term = function() {
@@ -126,7 +144,7 @@ function interpreter(initLexer) {
 
 		while (this.currentToken.type == "PLUS" || this.currentToken.type == "MINUS") {
 			var testToken = this.currentToken;
-			if (testToken.type = "PLUS") {
+			if (testToken.type == "PLUS") {
 				this.eat("PLUS");
 				result += this.term();
 			}
@@ -135,7 +153,6 @@ function interpreter(initLexer) {
 				result -= this.term();
 			}
 		}
-
 		return result;
 	 }
 }
