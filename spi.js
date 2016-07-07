@@ -103,6 +103,13 @@ function binOp(initLeft, initOp, initRight) {
 }
 binOp.prototype = new AST();
 
+function unaryOp(initOp, initExpr) {
+	this.token = initOp;
+	this.op = initOp;
+	this.expr = initExpr;
+}
+unaryOp.prototype = new AST();
+
 function num(initToken) {
 	this.token = initToken;
 	this.value = initToken.value;
@@ -127,7 +134,15 @@ function parser(initLexer) {
 
 	this.factor = function() {
 		var factorToken = this.currentToken;
-		if (factorToken.type == "INTEGER") {
+		if (factorToken.type == "PLUS") {
+			this.eat("PLUS");
+			return new unaryOp(factorToken, this.factor());
+		}
+		else if (factorToken.type == "MINUS") {
+			this.eat("MINUS");
+			return new unaryOp(factorToken, this.factor());
+		}
+		else if (factorToken.type == "INTEGER") {
 			this.eat("INTEGER");
 			return new num(factorToken);
 		}
@@ -182,6 +197,8 @@ function nodeVisitor() {
 			return this.visitBinOp(node);
 		else if (node instanceof num)
 			return this.visitNum(node);
+		else if (node instanceof unaryOp)
+			return this.visitUnaryOp(node);
 		else
 			return this.genericVisit(node);
 	}
@@ -207,6 +224,16 @@ function interpreter(initParser) {
 
 	this.visitNum = function(node) {
 		return node.value;
+	}
+
+	this.visitUnaryOp = function(node) {
+		var op = node.op.type;
+		if (op == "PLUS") {
+			return +this.visit(node.expr);
+		}
+		else if (op == "MINUS") {
+			return -this.visit(node.expr);
+		}
 	}
 
 	this.interpret = function() {
