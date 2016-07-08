@@ -20,6 +20,23 @@ function lexer(initText) {
 	this.position = 0;
 	this.currentChar = this.text[this.position];
 
+	this.reservedKeywords = {
+		BEGIN: new token("BEGIN", "BEGIN"),
+		END: new token("END", "END")
+	}
+
+	this.id = function()  {
+		var result = "";
+		while (this.currentChar != null && /[a-z]/i.test(this.currentChar)) {
+			result += this.currentChar;
+			this.advance();
+		}
+		if (result in this.reservedKeywords)
+			return this.reservedKeywords[result];
+		else
+			return new token("ID", result);
+	}
+
 	this.error = function() {
 		throw "Invalid character"
 	}
@@ -44,6 +61,14 @@ function lexer(initText) {
 			this.advance();
 		}
 		return parseInt(result);
+	}
+
+	this.peek = function() {
+		var peekPos = this.position + 1;
+		if (peekPos > this.text.length - 1)
+			return null;
+		else
+			return this.text[peekPos];
 	}
 
 	this.getNextToken = function() {
@@ -86,14 +111,33 @@ function lexer(initText) {
 				return new token("RPAREN", ")");
 			}
 
+			if (/[a-z]/i.test(this.currentChar))
+				return this.id();
+
+			if (this.currentChar == ":" && this.peek() == "=") {
+				this.advance();
+				this.advance();
+				return new token("ASSIGN", ":=");
+			}
+
+			if (this.currentChar == ";") {
+				this.advance();
+				return new token("SEMI", ";");
+			}
+
+			if (this.currentChar == ".") {
+				this.advance();
+				return new token("DOT", ".");
+			}
+
 			this.error();
 		}
 		return new token("EOF", null);
 	}
 }
 
-function AST() {
-}
+//function AST() {
+//}
 
 function binOp(initLeft, initOp, initRight) {
 	this.left = initLeft;
@@ -101,20 +145,43 @@ function binOp(initLeft, initOp, initRight) {
 	this.op = initOp;
 	this.right = initRight;
 }
-binOp.prototype = new AST();
+//binOp.prototype = new AST();
 
 function unaryOp(initOp, initExpr) {
 	this.token = initOp;
 	this.op = initOp;
 	this.expr = initExpr;
 }
-unaryOp.prototype = new AST();
+//unaryOp.prototype = new AST();
 
 function num(initToken) {
 	this.token = initToken;
 	this.value = initToken.value;
 }
-num.prototype = new AST();
+//num.prototype = new AST();
+
+function compound() {
+	this.children = [];
+}
+//compound.prototype = new AST();
+
+function assign(initLeft, initOp, initRight) {
+	this.left = initLeft;
+	this.token = initOp;
+	this.op = initOp;
+	this.right = initRight;
+}
+//assign.prototype = new AST();
+
+function nVar(initToken) {
+	this.token = initToken;
+	this.value = initToken.value;
+}
+//nVar.prototype = new AST();
+
+function noOp() {
+}
+//noOp.prototype = new AST();
 
 function parser(initLexer) {
 	
@@ -126,6 +193,7 @@ function parser(initLexer) {
 	}
 
 	this.eat = function(tokenType) {
+		//console.log(this.currentToken);
 		if (this.currentToken.type == tokenType)
 			this.currentToken = this.lexer.getNextToken();
 		else
@@ -133,29 +201,46 @@ function parser(initLexer) {
 	}
 
 	this.factor = function() {
+		//console.log("'factor' rule called.");
 		var factorToken = this.currentToken;
 		if (factorToken.type == "PLUS") {
 			this.eat("PLUS");
-			return new unaryOp(factorToken, this.factor());
+			var node = new unaryOp(factorToken, this.factor());
+			//console.log(node);
+			return node;
+			//console.log("'factor' returned.");
 		}
 		else if (factorToken.type == "MINUS") {
 			this.eat("MINUS");
-			return new unaryOp(factorToken, this.factor());
+			var node = new unaryOp(factorToken, this.factor());
+			//console.log(node);
+			return node;
+			//console.log("'factor' returned.");
 		}
 		else if (factorToken.type == "INTEGER") {
 			this.eat("INTEGER");
-			return new num(factorToken);
+			var node = new num(factorToken);
+			//console.log(node);
+			return node;
 		}
 		else if (factorToken.type == "LPAREN") {
 			this.eat("LPAREN");
 			var node = this.expr();
+			//console.log("'expr' returned.");
 			this.eat("RPAREN");
+			//console.log(node);
 			return node;
 		}
+		else
+			var node = this.variable();
+			//console.log(node);
+			return node;
 	}
 
 	this.term = function() {
+		//console.log("'term' rule called.");
 		var node = this.factor();
+		//console.log("'factor' returned.");
 
 		while (this.currentToken.type == "MUL" || this.currentToken.type == "DIV") {
 			var testToken = this.currentToken;
@@ -166,12 +251,16 @@ function parser(initLexer) {
 				this.eat("DIV");
 			}
 			node = new binOp(node, testToken, this.term());
+			//console.log("'term' returned.");
 		}
+		//console.log(node);
 		return node;
 	}
 
 	this.expr = function() {
+		//console.log("'expr' rule called.");
 		var node = this.term();
+		//console.log("'term' returned.");
 
 		while (this.currentToken.type == "PLUS" || this.currentToken.type == "MINUS") {
 			var testToken = this.currentToken;
@@ -182,12 +271,115 @@ function parser(initLexer) {
 				this.eat("MINUS");
 			}
 			node = new binOp(node, testToken, this.term());
+			//console.log("'term' returned.");
 		}
+		//console.log(node);
 		return node;
 	}
 
+	this.program = function() {
+		//console.log("'program' rule called.");
+		var node = this.compoundStatement();
+		//console.log("'compoundStatement' returned.");
+		this.eat("DOT");
+		//console.log(node);
+		return node;
+	}
+
+	this.compoundStatement = function() {
+		//console.log("'compoundStatement' rule called.");
+		this.eat("BEGIN");
+		var nodes = this.statementList();
+		//console.log("'statementList' returned.");
+		this.eat("END");
+
+		var tRoot = new compound();
+		for (var i = 0; i < nodes.length; i++)
+			tRoot.children.push(nodes[i]);
+
+		//console.log(tRoot);
+		return tRoot;
+	}
+
+	this.statementList = function() {
+		//console.log("'statementList' rule called.");
+		var node = this.statement();
+		//console.log("'statement' returned.");
+		var results = [];
+		results.push(node);
+
+		while (this.currentToken.type == "SEMI") {
+			this.eat("SEMI");
+			results.push(this.statement());
+			//console.log("'statement' returned.");
+		}
+
+		if (this.currentToken.type == "ID")
+			this.error();
+
+		//console.log(results);
+		return results;
+	}
+
+	this.statement = function() {
+		//console.log("'statement' rule called.");
+		var node;
+		if (this.currentToken.type == "BEGIN") {
+			node = this.compoundStatement();
+			//console.log("'compoundStatement' returned.");
+		}
+		else if (this.currentToken.type == "ID") {
+			node = this.assignmentStatement();
+			//console.log("'assignmentStatement' returned.");
+		}
+		else {
+			node = this.empty();
+			//console.log("'empty' returned.");
+		}
+
+		//console.log(node);
+		return node;
+	}
+
+	this.assignmentStatement = function() {
+		//console.log("'assignmentStatement' rule called.");
+		var left = this.variable();
+		//console.log("'variable' returned.");
+		var token = this.currentToken;
+		this.eat("ASSIGN");
+		var right = this.expr();
+		//console.log("'expr' returned.");
+		var node = new assign(left, token, right);
+
+		//console.log(node);
+		return node;
+	}
+
+	this.variable = function() {
+		//console.log("'variable' rule called.");
+		var node = new nVar(this.currentToken);
+		this.eat("ID");
+
+		//console.log(node);
+		return node;
+	}
+
+	this.empty = function() {
+		//console.log("'empty' rule called.");
+		var node = new noOp();
+		//console.log(node);
+		return node;
+		//console.log("'noOp' returned.");
+	}
+
 	this.parse = function() {
-		return this.expr();
+		var node = this.program();
+		//console.log("'program' returned.");
+		if (this.currentToken.type != "EOF")
+			this.error();
+
+		//console.log(node);
+		return node;
 	}
 }
 
@@ -199,6 +391,14 @@ function nodeVisitor() {
 			return this.visitNum(node);
 		else if (node instanceof unaryOp)
 			return this.visitUnaryOp(node);
+		else if (node instanceof compound)
+			return this.visitCompound(node);
+		else if (node instanceof assign)
+			return this.visitAssign(node);
+		else if (node instanceof nVar)
+			return this.visitVar(node);
+		else if (node instanceof noOp)
+			return this.visitNoOp(node);
 		else
 			return this.genericVisit(node);
 	}
@@ -210,6 +410,7 @@ function nodeVisitor() {
 
 function interpreter(initParser) {
 	this.parser = initParser;
+	this.globalScope = {};
 
 	this.visitBinOp = function(node) {
 		if (node.op.type == "PLUS")
@@ -235,9 +436,33 @@ function interpreter(initParser) {
 			return -this.visit(node.expr);
 		}
 	}
+	
+	this.visitCompound = function(node) {
+		for (var i = 0; i < node.children.length; i++)
+			//console.log(node.children[i]);
+			this.visit(node.children[i]);
+	}
+
+	this.visitAssign = function(node) {
+		var varName = node.left.value;
+		this.globalScope[varName] = this.visit(node.right);
+	}
+
+	this.visitVar = function(node) {
+		var varName = node.value;
+		//console.log(varName);
+		if (varName in this.globalScope)
+			return this.globalScope[varName];	
+		else
+			throw varName + " is not a variable"
+	}	
+
+	this.visitNoOp = function(node) {
+	}
 
 	this.interpret = function() {
 		var tree = this.parser.parse();
+		//console.log(tree);
 		return this.visit(tree);
 	}
 }
@@ -254,7 +479,9 @@ var main = function(input) {
 		var currentLexer = new lexer(input);
 		var currentParser = new parser(currentLexer);
 		var currentInterpreter = new interpreter(currentParser);
-		console.log(currentInterpreter.interpret());
+		currentInterpreter.interpret();
+		console.log("Variables: ");
+		console.log(currentInterpreter.globalScope);
 		rl.question(promptString, main);
 	}
 }
